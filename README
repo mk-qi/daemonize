@@ -1,0 +1,8 @@
+README - daemonize
+
+The code is published under the MIT - License.
+You can have a look at it in the LICENSE file.
+
+Main purpose for writing this code was to get into KDevelop and CMake.
+Also I didn't know that you should take special actions to create a daemon and
+wanted to save the code somewhere if I need to quickly access to it.
