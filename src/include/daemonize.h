@@ -1,3 +1,6 @@
+#ifndef DAEMONIZE_H_
+#define DAEMONIZE_H_
+
 #include <sys/types.h>
 
 #include <unistd.h>
@@ -55,3 +58,5 @@
  */
 
 pid_t daemonize(mode_t mask, const char *__restrict dir);
+
+#endif /* DAEMONIZE_H_ */

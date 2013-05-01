@@ -13,6 +13,8 @@
 #define ERR_WARNING  "*WARNING* :: "
 #define ERR_CRITICAL "*CRITICAL* :: "
 
+#define ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
+
 /* declaration with __attribute__ */
 static void _err_out(FILE *__restrict stream, 
                     const char *__restrict severity, 
@@ -53,6 +55,8 @@ static void _err_func(FILE *__restrict stream,
 pid_t daemonize(mode_t mask, const char *__restrict dir)
 {
     pid_t pid, sid;
+    const int signals[] = { SIGHUP, SIGINT, SIGTSTP, SIGTTIN, SIGTTOU };
+    int num_signals;
     struct sigaction sa;
     
     pid = fork();
@@ -76,14 +80,13 @@ pid_t daemonize(mode_t mask, const char *__restrict dir)
     sa.sa_flags   = SA_SIGINFO;
     sa.sa_handler = SIG_IGN;
     
-    if(sigaction(SIGHUP, &sa, NULL) < 0) {
-        _err_func(stderr, ERR_CRITICAL, "sigaction()", errno);
-        return -1;
-    }
+    num_signals = ARRAY_SIZE(signals);
     
-    if(sigaction(SIGINT, &sa, NULL) < 0) {
-        _err_func(stderr, ERR_CRITICAL, "sigaction()", errno);
-        return -1;
+    while(num_signals--) {
+        if(sigaction(signals[num_signals], &sa, NULL) < 0) {
+            _err_func(stderr, ERR_CRITICAL, "sigaction()", errno);
+            return -1;
+        }
     }
     
     /* set file permissions */
