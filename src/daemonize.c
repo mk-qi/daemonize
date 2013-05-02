@@ -70,8 +70,7 @@ static int _redirect_std_streams(void)
         if(close(fds[i]) < 0)
             return -errno;
         
-        oflag = O_NOCTTY | O_NOFOLLOW;
-        oflag |= (fds[i] == STDIN_FILENO) ? O_RDONLY : O_RDWR;
+        oflag = O_NOFOLLOW | (fds[i] == STDIN_FILENO) ? O_RDONLY : O_RDWR;
         /*
          * 'open()' always picks the lowest available file descriptor
          * thus redirecting one of the standard streams to /dev/null
@@ -96,6 +95,11 @@ int daemonize(mode_t mask, const char *__restrict dir, bool close_fds)
     if(err < 0)
         return err;
     
+    /* 
+     * Exit session leading process:
+     * Only a session leading process is able to acquire
+     * a controlling terminal
+     */
     err = _fork_off_to_child();
     if(err < 0)
         return err;
