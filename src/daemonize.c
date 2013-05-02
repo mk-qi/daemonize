@@ -6,102 +6,109 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
 #include <errno.h>
-
-#include <stdarg.h>
-
-#define ERR_WARNING  "*WARNING* :: "
-#define ERR_CRITICAL "*CRITICAL* :: "
 
 #define ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
 
-/* declaration with __attribute__ */
-static void _err_out(FILE *__restrict stream, 
-                    const char *__restrict severity, 
-                    const char *__restrict fmt, 
-                    ...)  __attribute__((format(printf, 3, 4)));
 
-/* definition */
-static void _err_out(FILE *__restrict stream, 
-                    const char *__restrict severity, 
-                    const char *__restrict fmt, 
-                    ...)
+static int _fork_off_to_child(void)
 {
-    va_list varg;
+    pid_t pid;
     
-    if(!stream)
-        stream = stderr;
+    pid = fork();
+    if(pid < 0)
+        return -1;
+
+    /* exiting parent */
+    if(pid > 0)
+        _exit(EXIT_SUCCESS);
     
-    va_start(varg, fmt);
-    
-    fprintf(stream, "%s :: ", severity);
-    vfprintf(stream, fmt, varg);
-    fflush(stream);
-    
-    va_end(varg);
+    return 0;
 }
 
-static void _err_func(FILE *__restrict stream,
-                     const char *__restrict severity,
-                     const char *__restrict func,
-                     int err)
+static pid_t _create_session(void)
 {
-    char *fmt = "%s failed: %s, errno: %d\n";
+    pid_t sid;
     
-    _err_out(stream, severity, fmt, func, strerror(err), err);
+    /* create independant session */
+    sid = setsid();
+    if(sid < 0)
+        return -1;
+    
+    return sid;
 }
 
-
-pid_t daemonize(mode_t mask, const char *__restrict dir)
+static int _ignore_signals(void)
 {
-    pid_t pid, sid;
     const int signals[] = { SIGHUP, SIGINT, SIGTSTP, SIGTTIN, SIGTTOU };
     int num_signals;
     struct sigaction sa;
     
-    pid = fork();
-    if(pid < 0) {
-        _err_func(stderr, ERR_CRITICAL, "fork()", errno);
-        return -1;
-    }
-    
-    /* exiting parent */
-    if(pid > 0)
-        exit(EXIT_SUCCESS);
-    
-    /* create independant session */
-    sid = setsid();
-    if(sid < 0) {
-        _err_func(stderr, ERR_CRITICAL, "setsid()", errno);
-        return -1;
-    }
-    
-    /* ignore signals */
     sa.sa_flags   = SA_SIGINFO;
     sa.sa_handler = SIG_IGN;
     
     num_signals = ARRAY_SIZE(signals);
     
     while(num_signals--) {
-        if(sigaction(signals[num_signals], &sa, NULL) < 0) {
-            _err_func(stderr, ERR_CRITICAL, "sigaction()", errno);
+        if(sigaction(signals[num_signals], &sa, NULL) < 0)
             return -1;
-        }
     }
+    
+    return 0;
+}
+
+static int _redirect_std_streams(void)
+{
+    int i, num_fds, oflag;
+    const int fds[] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO };
+    
+    num_fds = ARRAY_SIZE(fds);
+    
+    for(i = 0; i < num_fds; ++i) {
+        if(close(fds[i]) < 0)
+            return -1;
+        
+        oflag = O_NOCTTY | O_NOFOLLOW;
+        oflag |= (fds[i] == STDIN_FILENO) ? O_RDONLY : O_RDWR;
+        /*
+         * 'open()' always picks the lowest available file descriptor
+         * thus redirecting one of the standard streams to /dev/null
+         */
+        if(open("/dev/null", oflag) != fds[i])
+            return -1;
+    }
+    
+    return 0;
+}
+
+
+pid_t daemonize(mode_t mask, const char *__restrict dir)
+{
+    pid_t sid;
+    
+    if(_fork_off_to_child() < 0)
+        return -1;
+    
+    sid = _create_session();
+    if(sid < 0)
+        return -1;
+    
+    if(_fork_off_to_child() < 0)
+        return -1;
+    
+    if(_ignore_signals() < 0)
+        return -1;
     
     /* set file permissions */
     umask(mask);
     
     /* change working directory */
-    if(chdir(dir) < 0) {
-        _err_func(stderr, ERR_CRITICAL, "chdir()", errno);
+    if(chdir(dir) < 0)
         return -1;
-    }
-    
-    /* close standard streams */
-    fclose(stdin);
-    fclose(stdout);
-    fclose(stderr);
+
+    if(_redirect_std_streams() < 0)
+        return -1;
     
     return sid;
 }
