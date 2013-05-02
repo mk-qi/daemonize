@@ -8,6 +8,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #define ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
 
@@ -83,7 +84,7 @@ static int _redirect_std_streams(void)
 }
 
 
-int daemonize(mode_t mask, const char *__restrict dir)
+int daemonize(mode_t mask, const char *__restrict dir, bool close_fds)
 {
     int err;
     
@@ -110,9 +111,11 @@ int daemonize(mode_t mask, const char *__restrict dir)
     if(chdir(dir) < 0)
         return -errno;
 
-    err = _redirect_std_streams();
-    if(err < 0)
-        return err;
+    if(close_fds) {
+        err = _redirect_std_streams();
+        if(err < 0)
+            return err;
+    }
     
     return 0;
 }

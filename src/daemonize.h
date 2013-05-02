@@ -4,6 +4,7 @@
 #include <sys/types.h>
 
 #include <unistd.h>
+#include <stdbool.h>
 
 /*
  * function:
@@ -57,6 +58,6 @@
  *      }
  */
 
-pid_t daemonize(mode_t mask, const char *__restrict dir);
+pid_t daemonize(mode_t mask, const char *__restrict dir, bool close_fds);
 
 #endif /* DAEMONIZE_H_ */
