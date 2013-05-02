@@ -18,7 +18,7 @@ static int _fork_off_to_child(void)
     
     pid = fork();
     if(pid < 0)
-        return -1;
+        return -errno;
 
     /* exiting parent */
     if(pid > 0)
@@ -27,16 +27,16 @@ static int _fork_off_to_child(void)
     return 0;
 }
 
-static pid_t _create_session(void)
+static int _create_new_session(void)
 {
     pid_t sid;
     
     /* create independant session */
     sid = setsid();
     if(sid < 0)
-        return -1;
+        return -errno;
     
-    return sid;
+    return 0;
 }
 
 static int _ignore_signals(void)
@@ -52,7 +52,7 @@ static int _ignore_signals(void)
     
     while(num_signals--) {
         if(sigaction(signals[num_signals], &sa, NULL) < 0)
-            return -1;
+            return -errno;
     }
     
     return 0;
@@ -67,7 +67,7 @@ static int _redirect_std_streams(void)
     
     for(i = 0; i < num_fds; ++i) {
         if(close(fds[i]) < 0)
-            return -1;
+            return -errno;
         
         oflag = O_NOCTTY | O_NOFOLLOW;
         oflag |= (fds[i] == STDIN_FILENO) ? O_RDONLY : O_RDWR;
@@ -76,39 +76,43 @@ static int _redirect_std_streams(void)
          * thus redirecting one of the standard streams to /dev/null
          */
         if(open("/dev/null", oflag) != fds[i])
-            return -1;
+            return -errno;
     }
     
     return 0;
 }
 
 
-pid_t daemonize(mode_t mask, const char *__restrict dir)
+int daemonize(mode_t mask, const char *__restrict dir)
 {
-    pid_t sid;
+    int err;
     
-    if(_fork_off_to_child() < 0)
-        return -1;
+    err = _fork_off_to_child();
+    if(err < 0)
+        return err;
     
-    sid = _create_session();
-    if(sid < 0)
-        return -1;
+    err = _create_new_session();
+    if(err < 0)
+        return err;
     
-    if(_fork_off_to_child() < 0)
-        return -1;
+    err = _fork_off_to_child();
+    if(err < 0)
+        return err;
     
-    if(_ignore_signals() < 0)
-        return -1;
+    err = _ignore_signals();
+    if(err < 0)
+        return err;
     
     /* set file permissions */
     umask(mask);
     
     /* change working directory */
     if(chdir(dir) < 0)
-        return -1;
+        return -errno;
 
-    if(_redirect_std_streams() < 0)
-        return -1;
+    err = _redirect_std_streams();
+    if(err < 0)
+        return err;
     
-    return sid;
+    return 0;
 }
