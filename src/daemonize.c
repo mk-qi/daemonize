@@ -92,7 +92,10 @@ int daemonize(mode_t mask, const char *__restrict dir, bool close_fds)
     err = _fork_off_to_child();
     if(err < 0)
         return err;
-    
+    /*
+     * We don't want to get closed when our tty is closed.
+     * Creating our own session will prevent this.
+     */
     err = _create_new_session();
     if(err < 0)
         return err;

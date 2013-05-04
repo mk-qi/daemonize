@@ -33,6 +33,9 @@
  * 
  * @dir:
  *      Working directory of the daemon.
+ *
+ * @close_fds:
+ *      close and redirect stdin, stdout and stderr to /dev/null
  * 
  * @return:
  *      Session id of the daemon or -1 on failure.
